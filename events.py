@@ -1,13 +1,3 @@
-# ------------------ USER CONFIG ------------------
-collections = ["events"]      # List of MongoDB collections to process
-batch_size = 100000           # MongoDB batch size
-test_mode = False              # Whether to run in test mode
-test_limit = 1000             # Max records for test mode
-threads = 8                   # Thread pool size
-suffix = "WITH_DUPES2"        # Suffix for output tables/paths
-log_level = "INFO"            # "DEBUG", "INFO", "WARNING", "ERROR"
-# -------------------------------------------------
-
 import asyncio
 import json
 import logging
@@ -19,7 +9,6 @@ from dataclasses import dataclass
 from functools import wraps
 from threading import Lock
 from typing import Any, Dict, List, Optional, Set
-
 import snowflake.connector
 from bson import json_util
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -38,7 +27,18 @@ from snowflake.connector.errors import Error as SnowflakeError
 from tenacity import retry, stop_after_attempt, wait_exponential
 import nest_asyncio
 
+# Apply Nested Event Loop Patch
 nest_asyncio.apply()
+
+# ------------------ USER CONFIG ------------------
+collections = ["events"]      # List of MongoDB collections to process
+batch_size = 100000           # MongoDB batch size (large but fits memory)
+test_mode = False             # Production mode
+test_limit = 1000             # Only used if test_mode=True
+threads = 14                  # Use all available executor cores for concurrency
+suffix = "WITH_DUPES2"        # Output identifier
+log_level = "INFO"            # Logging level
+# -------------------------------------------------
 
 # Configure logging
 logging.basicConfig(
@@ -46,7 +46,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
 
 class FlatteningError(Exception):
     pass
@@ -56,15 +55,13 @@ class Config:
     def __init__(
         self, spark: SparkSession, collections, batch_size, test_mode, test_limit, threads, suffix
     ):
-        # MongoDB config (secrets or literal)
-        self.mongo_connection_string = (
-            "mongodb://myquility-api-prd-nosql:E41S0ZZybHK1MXuqeKpKuBjnvBr3Jjo8JK1NqvKCTAgilgrsYrptppgWMjdw4VvDmUB9KTFYx9RwUhd8xrF6iA=="
-            "@myquility-api-prd-nosql.mongo.cosmos.azure.com:10255/?ssl=true&retrywrites=false&maxIdleTimeMS=12000000"
-            "&appName=%40myquility-api-prd-nosql%40&directConnection=true"
+        # MongoDB config (secret from Key Vault)
+        self.mongo_connection_string = dbutils.secrets.get(
+            scope="key-vault-secret", key="mongo-connection-string-events"
         )
         self.mongo_database = "lead_events"
-
-        # Snowflake config (best: username and pass from Key Vault)
+        
+        # Snowflake config (from Key Vault)
         self.sf_user = dbutils.secrets.get(scope="key-vault-secret", key="DataProduct-SF-EDW-User")
         self.sf_password = dbutils.secrets.get(scope="key-vault-secret", key="DataProduct-SF-EDW-Pass")
         self.sf_account = "hmkovlx-nu26765"
@@ -77,6 +74,7 @@ class Config:
         self.adls_base_path = (
             "abfss://dataarchitecture@quilitydatabricks.dfs.core.windows.net/RAW/leadEvents/"
         )
+
         # Runtime config
         self.batch_size = batch_size
         self.test_mode = test_mode
@@ -84,10 +82,25 @@ class Config:
         self.collections = collections
         self.thread_pool_size = threads
         self.duplicate_suffix = suffix
-        # Cluster-aware
-        self.num_executors = int(spark.conf.get("spark.executor.instances", "1"))
-        self.executor_cores = int(spark.conf.get("spark.executor.cores", "4"))
-        self.optimal_partitions = self.num_executors * self.executor_cores * 2
+
+        # Cluster-aware logic (single-node tuned)
+        # On single-node clusters, executor.instances is typically "1" or not set
+        try:
+            self.num_executors = int(spark.conf.get("spark.executor.instances", "1"))
+        except Exception:
+            self.num_executors = 1
+        try:
+            # For your cluster, this should be 14 (see config)
+            self.executor_cores = int(spark.conf.get("spark.executor.cores", "14"))
+        except Exception:
+            self.executor_cores = 14  # safe fallback for your current config
+
+        if self.num_executors == 1:
+            self.optimal_partitions = max(2, self.executor_cores * 2)
+        else:
+            # For multi-node, classic approach
+            self.optimal_partitions = self.num_executors * self.executor_cores * 2
+
 
 class ThreadSafeSchemaTracker:
     def __init__(self):
