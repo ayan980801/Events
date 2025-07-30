@@ -10,6 +10,7 @@ from typing import Any, Dict, List, MutableMapping, Optional, Sequence, Set, Tup
 import snowflake.connector
 from bson import json_util
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import CursorNotFound
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import (
     col,
@@ -223,15 +224,27 @@ class DataIntegrator:
         limit = self.cfg.test_limit if self.cfg.test_mode else total
         limit = min(total, limit or total)
 
-        cursor = mc.find({}, limit=limit, batch_size=self.cfg.batch_size)
+        cursor = mc.find(
+            {},
+            limit=limit,
+            batch_size=self.cfg.batch_size,
+            no_cursor_timeout=True,
+        )
         buf: List[Dict[str, Any]] = []
-        async for doc in cursor:
-            buf.append(doc)
-            if len(buf) >= self.cfg.batch_size:
+        try:
+            async for doc in cursor:
+                buf.append(doc)
+                if len(buf) >= self.cfg.batch_size:
+                    await self._process_batch(buf, coll)
+                    buf = []
+            if buf:
                 await self._process_batch(buf, coll)
-                buf = []
-        if buf:
-            await self._process_batch(buf, coll)
+        except CursorNotFound as exc:
+            log.warning("Cursor lost while reading %s: %s", coll, exc)
+            if buf:
+                await self._process_batch(buf, coll)
+        finally:
+            await cursor.close()
 
     # --------------------- batch ---------------------
 
