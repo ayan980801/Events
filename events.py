@@ -385,6 +385,7 @@ class DataIntegrator:
             df.write.mode("overwrite")
             .format("delta")
             .option("mergeSchema", "true")
+            .option("overwriteSchema", "true")
             .save(adls_path)
         )
 
