@@ -347,12 +347,34 @@ class DataIntegrator:
         return df
 
     def _type_coerce(self, df: DataFrame) -> DataFrame:
-        for c in df.columns:
-            up = c.upper()
+        def _coerce_expr(expr_str: str, name: str, dt) -> str:
+            if isinstance(dt, ArrayType):
+                inner = _coerce_expr('x', name, dt.elementType)
+                if inner == 'x':
+                    return expr_str
+                return f"transform({expr_str}, x -> {inner})"
+            if isinstance(dt, StructType):
+                parts = []
+                changed = False
+                for f in dt.fields:
+                    sub = _coerce_expr(f"{expr_str}.`{f.name}`", f.name, f.dataType)
+                    parts.append(f"'{f.name}', {sub}")
+                    if sub != f"{expr_str}.`{f.name}`":
+                        changed = True
+                if not changed:
+                    return expr_str
+                joined = ", ".join(parts)
+                return f"named_struct({joined})"
+            up = name.upper()
             for tokens, typ in _TYPE_RULES.items():
                 if any(t in up for t in tokens):
-                    df = df.withColumn(c, expr(f"try_cast(`{c}` as {typ.simpleString()})"))
-                    break
+                    return f"try_cast({expr_str} as {typ.simpleString()})"
+            return expr_str
+
+        for f in df.schema.fields:
+            expr_str = _coerce_expr(f'`{f.name}`', f.name, f.dataType)
+            if expr_str != f'`{f.name}`':
+                df = df.withColumn(f.name, expr(expr_str))
         return df
 
     def _with_metadata(self, df: DataFrame) -> DataFrame:
