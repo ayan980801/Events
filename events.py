@@ -50,7 +50,11 @@ log.info("Spark %s initialised", spark.version)
 
 # ───────────────────────────── helper functions ───────────────────────────── #
 
-_CAMEL = re.compile(r"(?<!^)(?=[A-Z])")
+# Insert underscores before an uppercase letter only when the preceding
+# character is lowercase or a digit. This avoids splitting sequences of
+# capital letters like "UUID" into "U_U_I_D" while still converting camelCase
+# to snake_case-friendly names.
+_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _NONALNUM = re.compile(r"[^0-9a-zA-Z_]")
 
 def _safe_name(raw: str) -> str:
