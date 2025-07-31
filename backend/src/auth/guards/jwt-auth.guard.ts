@@ -20,7 +20,7 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const payload = this.jwtService.verify(token);
       const user = await this.authService.validateUser(payload.sub);
-      
+
       if (!user) {
         throw new UnauthorizedException('User not found');
       }

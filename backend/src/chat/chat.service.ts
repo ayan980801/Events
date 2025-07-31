@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
@@ -6,6 +6,7 @@ import { Message, MessageRole } from './schemas/message.schema';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AiProvidersService } from '../ai-providers/ai-providers.service';
+import { ModerationService } from '../common/services/moderation.service';
 
 @Injectable()
 export class ChatService {
@@ -15,6 +16,7 @@ export class ChatService {
     @InjectModel(Message.name)
     private messageModel: Model<Message>,
     private aiProvidersService: AiProvidersService,
+    private moderationService: ModerationService,
   ) {}
 
   async createConversation(
@@ -35,29 +37,18 @@ export class ChatService {
       .exec();
   }
 
-  async getConversation(
-    conversationId: string,
-    userId: string,
-  ): Promise<Conversation> {
-    return this.conversationModel
-      .findOne({ _id: conversationId, userId })
-      .exec();
+  async getConversation(conversationId: string, userId: string): Promise<Conversation> {
+    return this.conversationModel.findOne({ _id: conversationId, userId }).exec();
   }
 
-  async getConversationMessages(
-    conversationId: string,
-    userId: string,
-  ): Promise<Message[]> {
+  async getConversationMessages(conversationId: string, userId: string): Promise<Message[]> {
     // Verify user owns the conversation
     const conversation = await this.getConversation(conversationId, userId);
     if (!conversation) {
       throw new Error('Conversation not found');
     }
 
-    return this.messageModel
-      .find({ conversationId })
-      .sort({ createdAt: 1 })
-      .exec();
+    return this.messageModel.find({ conversationId }).sort({ createdAt: 1 }).exec();
   }
 
   async sendMessage(
@@ -70,39 +61,72 @@ export class ChatService {
       throw new Error('Conversation not found');
     }
 
+    // Moderate user message content
+    const moderationResult = await this.moderationService.moderateContent(
+      sendMessageDto.content,
+      userId,
+      'chat',
+    );
+
+    // Block message if moderation fails
+    if (!moderationResult.isAllowed) {
+      throw new BadRequestException({
+        message: 'Message blocked by content moderation',
+        reason: moderationResult.reason,
+        severity: moderationResult.severity,
+        action: moderationResult.action,
+      });
+    }
+
+    // Filter content if needed (for warnings)
+    let processedContent = sendMessageDto.content;
+    if (moderationResult.action === 'warn' || moderationResult.action === 'filter') {
+      processedContent = await this.moderationService.filterContent(sendMessageDto.content);
+    }
+
     // Save user message
     const userMessage = new this.messageModel({
       conversationId,
       userId,
       role: MessageRole.USER,
-      content: sendMessageDto.content,
+      content: processedContent,
+      metadata: {
+        originalContent:
+          sendMessageDto.content !== processedContent ? sendMessageDto.content : undefined,
+        moderation: moderationResult,
+      },
     });
     await userMessage.save();
 
     // Get conversation history for context
-    const messages = await this.messageModel
-      .find({ conversationId })
-      .sort({ createdAt: 1 })
-      .exec();
+    const messages = await this.messageModel.find({ conversationId }).sort({ createdAt: 1 }).exec();
 
-    // Generate AI response
-    const aiResponseContent = await this.aiProvidersService.generateResponse(
+    // Generate AI response with enhanced options
+    const aiResponse = await this.aiProvidersService.generateResponse(
       conversation.aiModel || 'gpt-3.5-turbo',
-      messages.map(msg => ({
+      messages.map((msg) => ({
         role: msg.role as any,
         content: msg.content,
       })),
+      {
+        temperature: conversation.temperature || 0.7,
+        maxTokens: conversation.maxTokens || 1000,
+        enableFailover: true,
+      },
     );
 
-    // Save AI response
-    const aiResponse = new this.messageModel({
+    // Save AI response with metadata
+    const aiResponseMessage = new this.messageModel({
       conversationId,
       userId,
       role: MessageRole.ASSISTANT,
-      content: aiResponseContent,
-      aiModel: conversation.aiModel,
+      content: aiResponse.content,
+      aiModel: aiResponse.model,
+      aiProvider: aiResponse.provider,
+      tokensUsed: aiResponse.tokens_used,
+      error: aiResponse.error,
     });
-    await aiResponse.save();
+    await aiResponseMessage.save();
 
     // Update conversation last message time
     conversation.lastMessageAt = new Date();
@@ -112,7 +136,7 @@ export class ChatService {
     }
     await conversation.save();
 
-    return { userMessage, aiResponse };
+    return { userMessage, aiResponse: aiResponseMessage };
   }
 
   async deleteConversation(conversationId: string, userId: string): Promise<void> {
@@ -128,9 +152,7 @@ export class ChatService {
 
   private generateConversationTitle(firstMessage: string): string {
     // Simple title generation - take first 50 characters
-    const title = firstMessage.length > 50 
-      ? firstMessage.substring(0, 47) + '...'
-      : firstMessage;
+    const title = firstMessage.length > 50 ? firstMessage.substring(0, 47) + '...' : firstMessage;
     return title;
   }
 }

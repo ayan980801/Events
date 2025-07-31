@@ -42,6 +42,18 @@ export class User {
   @Column({ nullable: true })
   providerId: string;
 
+  @Column({ nullable: true })
+  googleId: string;
+
+  @Column({ nullable: true })
+  appleId: string;
+
+  @Column({ nullable: true })
+  profilePicture: string;
+
+  @Column({ default: false })
+  emailVerified: boolean;
+
   @Column({
     type: 'enum',
     enum: SubscriptionTier,

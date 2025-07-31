@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { GoogleAuthDto, AppleAuthDto } from './dto/oauth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -30,15 +31,17 @@ export class AuthController {
   @Post('google')
   @ApiOperation({ summary: 'Google OAuth login' })
   @ApiResponse({ status: 200, description: 'Google login successful' })
-  async googleAuth(@Body() body: { token: string }) {
-    return this.authService.googleAuth(body.token);
+  @ApiResponse({ status: 401, description: 'Invalid Google token' })
+  async googleAuth(@Body() googleAuthDto: GoogleAuthDto) {
+    return this.authService.googleAuth(googleAuthDto.token);
   }
 
   @Post('apple')
-  @ApiOperation({ summary: 'Apple OAuth login' })
+  @ApiOperation({ summary: 'Apple Sign-In login' })
   @ApiResponse({ status: 200, description: 'Apple login successful' })
-  async appleAuth(@Body() body: { token: string }) {
-    return this.authService.appleAuth(body.token);
+  @ApiResponse({ status: 401, description: 'Invalid Apple token' })
+  async appleAuth(@Body() appleAuthDto: AppleAuthDto) {
+    return this.authService.appleAuth(appleAuthDto.token);
   }
 
   @Get('me')

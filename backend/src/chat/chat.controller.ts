@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Delete,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
@@ -42,20 +34,14 @@ export class ChatController {
   @ApiOperation({ summary: 'Get conversation details' })
   @ApiResponse({ status: 200, description: 'Conversation found' })
   @ApiResponse({ status: 404, description: 'Conversation not found' })
-  async getConversation(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-  ) {
+  async getConversation(@Param('id') id: string, @CurrentUser() user: any) {
     return this.chatService.getConversation(id, user.id);
   }
 
   @Get('conversations/:id/messages')
   @ApiOperation({ summary: 'Get conversation messages' })
   @ApiResponse({ status: 200, description: 'Messages retrieved' })
-  async getMessages(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-  ) {
+  async getMessages(@Param('id') id: string, @CurrentUser() user: any) {
     return this.chatService.getConversationMessages(id, user.id);
   }
 
@@ -73,10 +59,7 @@ export class ChatController {
   @Delete('conversations/:id')
   @ApiOperation({ summary: 'Delete a conversation' })
   @ApiResponse({ status: 200, description: 'Conversation deleted' })
-  async deleteConversation(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-  ) {
+  async deleteConversation(@Param('id') id: string, @CurrentUser() user: any) {
     await this.chatService.deleteConversation(id, user.id);
     return { message: 'Conversation deleted successfully' };
   }
