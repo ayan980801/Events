@@ -35,29 +35,18 @@ export class ChatService {
       .exec();
   }
 
-  async getConversation(
-    conversationId: string,
-    userId: string,
-  ): Promise<Conversation> {
-    return this.conversationModel
-      .findOne({ _id: conversationId, userId })
-      .exec();
+  async getConversation(conversationId: string, userId: string): Promise<Conversation> {
+    return this.conversationModel.findOne({ _id: conversationId, userId }).exec();
   }
 
-  async getConversationMessages(
-    conversationId: string,
-    userId: string,
-  ): Promise<Message[]> {
+  async getConversationMessages(conversationId: string, userId: string): Promise<Message[]> {
     // Verify user owns the conversation
     const conversation = await this.getConversation(conversationId, userId);
     if (!conversation) {
       throw new Error('Conversation not found');
     }
 
-    return this.messageModel
-      .find({ conversationId })
-      .sort({ createdAt: 1 })
-      .exec();
+    return this.messageModel.find({ conversationId }).sort({ createdAt: 1 }).exec();
   }
 
   async sendMessage(
@@ -80,15 +69,12 @@ export class ChatService {
     await userMessage.save();
 
     // Get conversation history for context
-    const messages = await this.messageModel
-      .find({ conversationId })
-      .sort({ createdAt: 1 })
-      .exec();
+    const messages = await this.messageModel.find({ conversationId }).sort({ createdAt: 1 }).exec();
 
     // Generate AI response
     const aiResponseContent = await this.aiProvidersService.generateResponse(
       conversation.aiModel || 'gpt-3.5-turbo',
-      messages.map(msg => ({
+      messages.map((msg) => ({
         role: msg.role as any,
         content: msg.content,
       })),
@@ -128,9 +114,7 @@ export class ChatService {
 
   private generateConversationTitle(firstMessage: string): string {
     // Simple title generation - take first 50 characters
-    const title = firstMessage.length > 50 
-      ? firstMessage.substring(0, 47) + '...'
-      : firstMessage;
+    const title = firstMessage.length > 50 ? firstMessage.substring(0, 47) + '...' : firstMessage;
     return title;
   }
 }

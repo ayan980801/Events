@@ -22,10 +22,7 @@ export class UsersController {
   @Patch('profile')
   @ApiOperation({ summary: 'Update current user profile' })
   @ApiResponse({ status: 200, description: 'User profile updated' })
-  async updateProfile(
-    @CurrentUser() user: any,
-    @Body() updateUserDto: UpdateUserDto,
-  ) {
+  async updateProfile(@CurrentUser() user: any, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(user.id, updateUserDto);
   }
 
