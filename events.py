@@ -1,4 +1,7 @@
+"""ETL pipeline for transforming MongoDB lead events into Snowflake and ADLS."""
+
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -6,7 +9,24 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, MutableMapping, Optional, Sequence, Set, Tuple
+from functools import wraps
+from typing import (
+    Any,
+    Dict,
+    List,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Callable,
+    TypeVar,
+    ParamSpec,
+    Awaitable,
+    cast,
+)
+
+import nest_asyncio
 import snowflake.connector
 from bson import json_util
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -29,7 +49,6 @@ from pyspark.sql.types import (
     TimestampType,
 )
 from pyspark.storagelevel import StorageLevel
-import nest_asyncio
 
 # Nested Event Loop Integration
 nest_asyncio.apply()
@@ -59,6 +78,8 @@ _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _NONALNUM = re.compile(r"[^0-9a-zA-Z_]")
 
 def _safe_name(raw: str) -> str:
+    """Sanitise a raw field name into an uppercase, Spark-safe identifier."""
+
     name = _NONALNUM.sub("_", raw or "")
     name = _CAMEL.sub("_", name).upper().strip("_")
     name = re.sub(r"_+", "_", name)
@@ -69,6 +90,8 @@ def _safe_name(raw: str) -> str:
     return name
 
 def _unique(name: str, registry: MutableMapping[str, int]) -> str:
+    """Return a name unique within ``registry`` by suffixing duplicates."""
+
     key = name.upper()
     if key not in registry:
         registry[key] = 0
@@ -76,16 +99,29 @@ def _unique(name: str, registry: MutableMapping[str, int]) -> str:
     registry[key] += 1
     return f"{name}_{registry[key]}"
 
-def _monitor(fn):
-    async def _async(*a, **kw):
-        t0 = time.perf_counter()
-        log.info("▶ %s", fn.__qualname__)
-        try:
-            return await fn(*a, **kw)
-        finally:
-            log.info("⏱  %.2fs ← %s", time.perf_counter() - t0, fn.__qualname__)
 
-    def _sync(*a, **kw):
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def _monitor(fn: Callable[P, R]) -> Callable[P, R]:
+    """Log entry/exit of ``fn`` and measure runtime."""
+
+    if asyncio.iscoroutinefunction(fn):
+
+        @wraps(fn)
+        async def _async(*a: P.args, **kw: P.kwargs) -> R:
+            t0 = time.perf_counter()
+            log.info("▶ %s", fn.__qualname__)
+            try:
+                return await cast(Callable[P, Awaitable[R]], fn)(*a, **kw)
+            finally:
+                log.info("⏱  %.2fs ← %s", time.perf_counter() - t0, fn.__qualname__)
+
+        return cast(Callable[P, R], _async)
+
+    @wraps(fn)
+    def _sync(*a: P.args, **kw: P.kwargs) -> R:
         t0 = time.perf_counter()
         log.info("▶ %s", fn.__qualname__)
         try:
@@ -93,7 +129,7 @@ def _monitor(fn):
         finally:
             log.info("⏱  %.2fs ← %s", time.perf_counter() - t0, fn.__qualname__)
 
-    return _async if asyncio.iscoroutinefunction(fn) else _sync
+    return _sync
 
 # ──────────────────────────────── configuration ──────────────────────────────── #
 
@@ -108,6 +144,8 @@ _dbutils = _maybe_dbutils()
 
 @dataclass(slots=True)
 class Config:
+    """Runtime configuration for the ETL process."""
+
     collections: Sequence[str]
     batch_size: int = 100_000
     test_mode: bool = False
@@ -176,12 +214,21 @@ _TYPE_RULES: Dict[Tuple[str, ...], Any] = {
 }
 
 class DataIntegrator:
+    """Orchestrates extraction from MongoDB and loading into ADLS/Snowflake."""
+
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
         self.batch_no = 0
         self.mongo = AsyncIOMotorClient(cfg.mongo_uri)
         self.sf_pool: List[snowflake.connector.SnowflakeConnection] = []
         self.global_schema: Set[str] = set()
+
+    async def __aenter__(self) -> "DataIntegrator":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        self._sf_close_all()
+        self.mongo.close()
 
     # ------------- connection helpers -------------
 
@@ -211,14 +258,17 @@ class DataIntegrator:
 
     @_monitor
     async def run(self) -> None:
+        """Process all configured MongoDB collections."""
+
         for coll in self.cfg.collections:
             await self._process_collection(coll)
-        self._sf_close_all()
 
     # ------------------ collection ------------------
 
     @_monitor
     async def _process_collection(self, coll: str) -> None:
+        """Stream documents from ``coll`` and process in batches."""
+
         mc = self.mongo["lead_events"][coll]
         total = await mc.count_documents({})
         limit = self.cfg.test_limit if self.cfg.test_mode else total
@@ -249,25 +299,33 @@ class DataIntegrator:
     # --------------------- batch ---------------------
 
     async def _process_batch(self, docs: List[Dict[str, Any]], coll: str) -> None:
+        """Transform and load a batch of MongoDB ``docs`` for a collection."""
+
         self.batch_no += 1
         log.info("Batch %s – %s docs", self.batch_no, len(docs))
         df = self._create_df(docs)
-        df = self._flatten(df)
-        df = self._suffix_type_on_collision(df)  # <--- NEW: disambiguate types by suffix!
-        df = self._type_coerce(df)
-        df = self._with_metadata(df)
-        self._to_adls(df, coll)
-        self._to_snowflake(df, coll)
-        df.unpersist()
+        try:
+            df = self._flatten(df)
+            df = self._suffix_type_on_collision(df)
+            df = self._type_coerce(df)
+            df = self._with_metadata(df)
+            self._to_adls(df, coll)
+            self._to_snowflake(df, coll)
+        finally:
+            df.unpersist()
 
     # -------------------- stages -------------------- #
 
     def _create_df(self, docs: List[Dict[str, Any]]) -> DataFrame:
+        """Create a ``DataFrame`` from raw MongoDB documents."""
+
         jsons = [json_util.dumps(d) for d in docs]
         rdd = spark.sparkContext.parallelize(jsons)
         return spark.read.json(rdd).repartition(max(1, len(jsons) // 50_000))
 
     def _flatten(self, df: DataFrame) -> DataFrame:
+        """Flatten nested structures and deduplicate column names."""
+
         seen: Dict[str, int] = {}
 
         stack: List[Tuple[str, StructType]] = [
@@ -324,9 +382,8 @@ class DataIntegrator:
         return df.persist(StorageLevel.MEMORY_AND_DISK)
 
     def _suffix_type_on_collision(self, df: DataFrame) -> DataFrame:
-        """
-        If columns have the same name but different types, suffix their type in the column name.
-        """
+        """Suffix column names when the same name appears with different types."""
+
         type_suffix = {
             StringType: "STRING",
             StructType: "STRUCT",
@@ -334,17 +391,17 @@ class DataIntegrator:
             IntegerType: "INT",
             DoubleType: "DOUBLE",
             BooleanType: "BOOL",
-            TimestampType: "TIMESTAMP"
+            TimestampType: "TIMESTAMP",
         }
-        # Map of lowercased column name to set of types seen
+
         from collections import defaultdict
-        type_map = defaultdict(set)
+
+        type_map = defaultdict(set)  # map of lowercased column name to types seen
         for f in df.schema.fields:
             typ = type(f.dataType)
             suffix = type_suffix.get(typ, "UNKNOWN")
             type_map[f.name.lower()].add(suffix)
 
-        # If >1 type seen for any col, suffix each with its type
         rename_map = {}
         for f in df.schema.fields:
             typ = type(f.dataType)
@@ -353,21 +410,22 @@ class DataIntegrator:
             if len(type_map[lc]) > 1:
                 rename_map[f.name] = f"{f.name}_{suffix}"
 
-        # Actually rename columns
         newcols = [rename_map.get(c, c) for c in df.columns]
         if newcols != list(df.columns):
             df = df.toDF(*newcols)
         return df
 
     def _type_coerce(self, df: DataFrame) -> DataFrame:
+        """Apply heuristic type coercion based on column names."""
+
         def _coerce_expr(expr_str: str, name: str, dt) -> str:
             if isinstance(dt, ArrayType):
-                inner = _coerce_expr('x', name, dt.elementType)
-                if inner == 'x':
+                inner = _coerce_expr("x", name, dt.elementType)
+                if inner == "x":
                     return expr_str
                 return f"transform({expr_str}, x -> {inner})"
             if isinstance(dt, StructType):
-                parts = []
+                parts: List[str] = []
                 changed = False
                 for f in dt.fields:
                     sub = _coerce_expr(f"{expr_str}.`{f.name}`", f.name, f.dataType)
@@ -385,13 +443,14 @@ class DataIntegrator:
             return expr_str
 
         for f in df.schema.fields:
-            expr_str = _coerce_expr(f'`{f.name}`', f.name, f.dataType)
-            if expr_str != f'`{f.name}`':
+            expr_str = _coerce_expr(f"`{f.name}`", f.name, f.dataType)
+            if expr_str != f"`{f.name}`":
                 df = df.withColumn(f.name, expr(expr_str))
         return df
 
     def _with_metadata(self, df: DataFrame) -> DataFrame:
-        # Deduplicate only on columns that exist
+        """Add standard ETL metadata columns and pad missing schema fields."""
+
         id_candidates = [c for c in ("ID", "_ID") if c in df.columns]
         if id_candidates:
             df = df.dropDuplicates(id_candidates)
@@ -413,6 +472,8 @@ class DataIntegrator:
     # -------------------- sinks -------------------- #
 
     def _to_adls(self, df: DataFrame, coll: str) -> None:
+        """Write the ``DataFrame`` to Azure Data Lake Storage as Delta."""
+
         adls_path = f"{self.cfg.adls}{coll}"
         log.info("Δ write → %s", adls_path)
         print(f"ADLS Save Path: '{adls_path}'")
@@ -425,6 +486,8 @@ class DataIntegrator:
         )
 
     def _to_snowflake(self, df: DataFrame, coll: str) -> None:
+        """Load the ``DataFrame`` into Snowflake, evolving schema as needed."""
+
         table = f"{coll}".upper()
         df_sync = self._sync_sf_schema(df, table)
         opts: Dict[str, str] = {
@@ -444,6 +507,8 @@ class DataIntegrator:
     # ---------- Snowflake schema evolution ---------- #
 
     def _sync_sf_schema(self, df: DataFrame, table: str) -> DataFrame:
+        """Ensure ``table`` exists in Snowflake with columns matching ``df``."""
+
         conn = self._sf_conn()
         cur = conn.cursor()
         try:
@@ -471,8 +536,11 @@ class DataIntegrator:
 # ───────────────────────────── entrypoint ───────────────────────────── #
 
 async def _main() -> None:
+    """Module entry point."""
+
     cfg = Config(collections=["events"])
-    await DataIntegrator(cfg).run()
+    async with DataIntegrator(cfg) as di:
+        await di.run()
 
 if __name__ == "__main__":
     asyncio.run(_main())
