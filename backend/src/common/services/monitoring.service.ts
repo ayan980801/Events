@@ -50,7 +50,7 @@ export class MonitoringService {
   constructor(private configService: ConfigService) {
     // Collect system metrics every 30 seconds
     setInterval(() => this.collectSystemMetrics(), 30000);
-    
+
     // Clean up old metrics every hour
     setInterval(() => this.cleanupOldMetrics(), 3600000);
   }
@@ -62,10 +62,12 @@ export class MonitoringService {
     };
 
     this.metrics.api.push(apiMetric);
-    
+
     // Log slow requests
     if (metrics.responseTime > 1000) {
-      this.logger.warn(`Slow API request: ${metrics.method} ${metrics.endpoint} - ${metrics.responseTime}ms`);
+      this.logger.warn(
+        `Slow API request: ${metrics.method} ${metrics.endpoint} - ${metrics.responseTime}ms`,
+      );
     }
 
     // Log error responses
@@ -83,7 +85,7 @@ export class MonitoringService {
     };
 
     this.metrics.errors.push(errorMetric);
-    
+
     // Log based on severity
     switch (error.severity) {
       case 'critical':
@@ -106,21 +108,21 @@ export class MonitoringService {
   private collectSystemMetrics() {
     const now = new Date();
     const lastMinute = new Date(now.getTime() - 60000);
-    
+
     // Calculate metrics for the last minute
-    const recentApiCalls = this.metrics.api.filter(m => m.timestamp >= lastMinute);
-    const messagesPerMinute = recentApiCalls.filter(m => 
-      m.endpoint.includes('/chat/') && m.method === 'POST'
+    const recentApiCalls = this.metrics.api.filter((m) => m.timestamp >= lastMinute);
+    const messagesPerMinute = recentApiCalls.filter(
+      (m) => m.endpoint.includes('/chat/') && m.method === 'POST',
     ).length;
-    
-    const averageResponseTime = recentApiCalls.length > 0
-      ? recentApiCalls.reduce((sum, m) => sum + m.responseTime, 0) / recentApiCalls.length
-      : 0;
-    
-    const recentErrors = this.metrics.errors.filter(e => e.timestamp >= lastMinute);
-    const errorRate = recentApiCalls.length > 0 
-      ? recentErrors.length / recentApiCalls.length * 100 
-      : 0;
+
+    const averageResponseTime =
+      recentApiCalls.length > 0
+        ? recentApiCalls.reduce((sum, m) => sum + m.responseTime, 0) / recentApiCalls.length
+        : 0;
+
+    const recentErrors = this.metrics.errors.filter((e) => e.timestamp >= lastMinute);
+    const errorRate =
+      recentApiCalls.length > 0 ? (recentErrors.length / recentApiCalls.length) * 100 : 0;
 
     const systemMetric: SystemMetrics = {
       timestamp: now,
@@ -138,21 +140,23 @@ export class MonitoringService {
     this.trimMetricsArray(this.metrics.system);
 
     // Log system health
-    this.logger.debug(`System Metrics: ${JSON.stringify({
-      messagesPerMinute,
-      averageResponseTime: Math.round(averageResponseTime),
-      errorRate: Math.round(errorRate * 100) / 100,
-      memoryMB: Math.round(systemMetric.memoryUsage.rss / 1024 / 1024),
-    })}`);
+    this.logger.debug(
+      `System Metrics: ${JSON.stringify({
+        messagesPerMinute,
+        averageResponseTime: Math.round(averageResponseTime),
+        errorRate: Math.round(errorRate * 100) / 100,
+        memoryMB: Math.round(systemMetric.memoryUsage.rss / 1024 / 1024),
+      })}`,
+    );
   }
 
   private cleanupOldMetrics() {
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
-    
-    this.metrics.api = this.metrics.api.filter(m => m.timestamp > cutoffTime);
-    this.metrics.errors = this.metrics.errors.filter(m => m.timestamp > cutoffTime);
-    this.metrics.system = this.metrics.system.filter(m => m.timestamp > cutoffTime);
-    
+
+    this.metrics.api = this.metrics.api.filter((m) => m.timestamp > cutoffTime);
+    this.metrics.errors = this.metrics.errors.filter((m) => m.timestamp > cutoffTime);
+    this.metrics.system = this.metrics.system.filter((m) => m.timestamp > cutoffTime);
+
     this.logger.log('Cleaned up old metrics');
   }
 
@@ -168,7 +172,7 @@ export class MonitoringService {
     checks: { [key: string]: boolean };
   } {
     const latestMetrics = this.metrics.system[this.metrics.system.length - 1];
-    
+
     const checks = {
       lowErrorRate: !latestMetrics || latestMetrics.errorRate < 5,
       acceptableResponseTime: !latestMetrics || latestMetrics.averageResponseTime < 2000,
@@ -178,7 +182,7 @@ export class MonitoringService {
 
     const healthyChecks = Object.values(checks).filter(Boolean).length;
     const totalChecks = Object.keys(checks).length;
-    
+
     let status: 'healthy' | 'degraded' | 'unhealthy';
     if (healthyChecks === totalChecks) {
       status = 'healthy';
@@ -198,27 +202,25 @@ export class MonitoringService {
   getMetricsSummary(timeWindow: 'hour' | 'day' = 'hour') {
     const now = new Date();
     const cutoff = new Date(now.getTime() - (timeWindow === 'hour' ? 3600000 : 86400000));
-    
-    const recentApiCalls = this.metrics.api.filter(m => m.timestamp >= cutoff);
-    const recentErrors = this.metrics.errors.filter(m => m.timestamp >= cutoff);
-    const recentSystemMetrics = this.metrics.system.filter(m => m.timestamp >= cutoff);
-    
+
+    const recentApiCalls = this.metrics.api.filter((m) => m.timestamp >= cutoff);
+    const recentErrors = this.metrics.errors.filter((m) => m.timestamp >= cutoff);
+    const recentSystemMetrics = this.metrics.system.filter((m) => m.timestamp >= cutoff);
+
     return {
       timeWindow,
       totalApiCalls: recentApiCalls.length,
       totalErrors: recentErrors.length,
       errorsByEndpoint: this.groupBy(
-        recentErrors.filter(e => e.error.includes('API')), 
-        'context'
+        recentErrors.filter((e) => e.error.includes('API')),
+        'context',
       ),
-      responseTimePercentiles: this.calculatePercentiles(
-        recentApiCalls.map(m => m.responseTime)
-      ),
-      errorRateTrend: recentSystemMetrics.map(m => ({
+      responseTimePercentiles: this.calculatePercentiles(recentApiCalls.map((m) => m.responseTime)),
+      errorRateTrend: recentSystemMetrics.map((m) => ({
         timestamp: m.timestamp,
         errorRate: m.errorRate,
       })),
-      memoryUsageTrend: recentSystemMetrics.map(m => ({
+      memoryUsageTrend: recentSystemMetrics.map((m) => ({
         timestamp: m.timestamp,
         memoryMB: Math.round(m.memoryUsage.rss / 1024 / 1024),
       })),
@@ -226,20 +228,28 @@ export class MonitoringService {
   }
 
   private groupBy<T>(array: T[], key: keyof T): { [key: string]: number } {
-    return array.reduce((groups, item) => {
-      const groupKey = String(item[key]);
-      groups[groupKey] = (groups[groupKey] || 0) + 1;
-      return groups;
-    }, {} as { [key: string]: number });
+    return array.reduce(
+      (groups, item) => {
+        const groupKey = String(item[key]);
+        groups[groupKey] = (groups[groupKey] || 0) + 1;
+        return groups;
+      },
+      {} as { [key: string]: number },
+    );
   }
 
-  private calculatePercentiles(values: number[]): { p50: number; p90: number; p95: number; p99: number } {
+  private calculatePercentiles(values: number[]): {
+    p50: number;
+    p90: number;
+    p95: number;
+    p99: number;
+  } {
     if (values.length === 0) {
       return { p50: 0, p90: 0, p95: 0, p99: 0 };
     }
-    
+
     const sorted = [...values].sort((a, b) => a - b);
-    
+
     return {
       p50: sorted[Math.floor(sorted.length * 0.5)],
       p90: sorted[Math.floor(sorted.length * 0.9)],
@@ -266,7 +276,7 @@ export class MonitoringService {
   }> {
     const alerts = [];
     const latestMetrics = this.metrics.system[this.metrics.system.length - 1];
-    
+
     if (latestMetrics) {
       if (latestMetrics.errorRate > 10) {
         alerts.push({
@@ -283,7 +293,7 @@ export class MonitoringService {
           timestamp: new Date(),
         });
       }
-      
+
       if (latestMetrics.averageResponseTime > 3000) {
         alerts.push({
           type: 'response_time',
@@ -299,7 +309,7 @@ export class MonitoringService {
           timestamp: new Date(),
         });
       }
-      
+
       const memoryMB = latestMetrics.memoryUsage.rss / 1024 / 1024;
       if (memoryMB > 1024) {
         alerts.push({
@@ -317,7 +327,7 @@ export class MonitoringService {
         });
       }
     }
-    
+
     return alerts;
   }
 }

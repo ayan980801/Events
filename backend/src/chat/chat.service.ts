@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
@@ -6,6 +6,7 @@ import { Message, MessageRole } from './schemas/message.schema';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AiProvidersService } from '../ai-providers/ai-providers.service';
+import { ModerationService } from '../common/services/moderation.service';
 
 @Injectable()
 export class ChatService {
@@ -15,6 +16,7 @@ export class ChatService {
     @InjectModel(Message.name)
     private messageModel: Model<Message>,
     private aiProvidersService: AiProvidersService,
+    private moderationService: ModerationService,
   ) {}
 
   async createConversation(
@@ -59,12 +61,40 @@ export class ChatService {
       throw new Error('Conversation not found');
     }
 
+    // Moderate user message content
+    const moderationResult = await this.moderationService.moderateContent(
+      sendMessageDto.content,
+      userId,
+      'chat',
+    );
+
+    // Block message if moderation fails
+    if (!moderationResult.isAllowed) {
+      throw new BadRequestException({
+        message: 'Message blocked by content moderation',
+        reason: moderationResult.reason,
+        severity: moderationResult.severity,
+        action: moderationResult.action,
+      });
+    }
+
+    // Filter content if needed (for warnings)
+    let processedContent = sendMessageDto.content;
+    if (moderationResult.action === 'warn' || moderationResult.action === 'filter') {
+      processedContent = await this.moderationService.filterContent(sendMessageDto.content);
+    }
+
     // Save user message
     const userMessage = new this.messageModel({
       conversationId,
       userId,
       role: MessageRole.USER,
-      content: sendMessageDto.content,
+      content: processedContent,
+      metadata: {
+        originalContent:
+          sendMessageDto.content !== processedContent ? sendMessageDto.content : undefined,
+        moderation: moderationResult,
+      },
     });
     await userMessage.save();
 

@@ -10,9 +10,9 @@ export class MonitoringController {
 
   @Get('health')
   @ApiOperation({ summary: 'Get system health status' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Returns system health status and checks' 
+  @ApiResponse({
+    status: 200,
+    description: 'Returns system health status and checks',
   })
   getHealthStatus() {
     return this.monitoringService.getHealthStatus();
@@ -22,15 +22,15 @@ export class MonitoringController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get system metrics summary' })
-  @ApiQuery({ 
-    name: 'timeWindow', 
-    enum: ['hour', 'day'], 
+  @ApiQuery({
+    name: 'timeWindow',
+    enum: ['hour', 'day'],
     required: false,
-    description: 'Time window for metrics aggregation'
+    description: 'Time window for metrics aggregation',
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Returns comprehensive system metrics' 
+  @ApiResponse({
+    status: 200,
+    description: 'Returns comprehensive system metrics',
   })
   getMetrics(@Query('timeWindow') timeWindow: 'hour' | 'day' = 'hour') {
     return this.monitoringService.getMetricsSummary(timeWindow);
@@ -40,9 +40,9 @@ export class MonitoringController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get active system alerts' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Returns active alerts and warnings' 
+  @ApiResponse({
+    status: 200,
+    description: 'Returns active alerts and warnings',
   })
   getAlerts() {
     return {
@@ -55,9 +55,9 @@ export class MonitoringController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Export all metrics data' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Returns complete metrics export for external analysis' 
+  @ApiResponse({
+    status: 200,
+    description: 'Returns complete metrics export for external analysis',
   })
   exportMetrics() {
     return this.monitoringService.exportMetrics();
@@ -65,9 +65,9 @@ export class MonitoringController {
 
   @Get('status')
   @ApiOperation({ summary: 'Simple status check endpoint' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Returns basic service status' 
+  @ApiResponse({
+    status: 200,
+    description: 'Returns basic service status',
   })
   getStatus() {
     return {
