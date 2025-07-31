@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import axios from 'axios';
+import * as jwt from 'jsonwebtoken';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -77,15 +79,72 @@ export class AuthService {
   }
 
   async googleAuth(token: string) {
-    // TODO: Implement Google OAuth verification
-    // For now, return a mock response
-    throw new Error('Google auth not implemented yet');
+    try {
+      const { data } = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
+        params: { id_token: token },
+      });
+
+      const email = data.email as string | undefined;
+      const googleId = data.sub as string | undefined;
+      const name = (data.name as string | undefined) ??
+        `${data.given_name ?? ''} ${data.family_name ?? ''}`.trim();
+
+      if (!email || !googleId) {
+        throw new UnauthorizedException('Invalid Google token');
+      }
+
+      let user = await this.usersService.findByEmail(email);
+      if (!user) {
+        user = await this.usersService.create({
+          email,
+          name: name || 'Google User',
+          provider: AuthProvider.GOOGLE,
+          providerId: googleId,
+        });
+      }
+
+      const payload = { sub: user.id, email: user.email };
+      const jwt = this.jwtService.sign(payload);
+
+      return {
+        user: { id: user.id, email: user.email, name: user.name },
+        token: jwt,
+      };
+    } catch (err) {
+      throw new UnauthorizedException('Google authentication failed');
+    }
   }
 
   async appleAuth(token: string) {
-    // TODO: Implement Apple OAuth verification
-    // For now, return a mock response
-    throw new Error('Apple auth not implemented yet');
+    try {
+      const decoded: any = jwt.decode(token);
+      if (!decoded || !decoded.sub) {
+        throw new UnauthorizedException('Invalid Apple token');
+      }
+
+      const email: string | undefined = decoded.email;
+      const appleId: string = decoded.sub;
+
+      let user = email ? await this.usersService.findByEmail(email) : null;
+      if (!user) {
+        user = await this.usersService.create({
+          email: email ?? `apple-${appleId}@example.com`,
+          name: 'Apple User',
+          provider: AuthProvider.APPLE,
+          providerId: appleId,
+        });
+      }
+
+      const payload = { sub: user.id, email: user.email };
+      const jwtToken = this.jwtService.sign(payload);
+
+      return {
+        user: { id: user.id, email: user.email, name: user.name },
+        token: jwtToken,
+      };
+    } catch (err) {
+      throw new UnauthorizedException('Apple authentication failed');
+    }
   }
 
   async refreshToken(userId: string) {

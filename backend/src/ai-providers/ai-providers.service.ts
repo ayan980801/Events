@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import MistralClient from '@mistralai/mistralai';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -10,6 +12,8 @@ interface ChatMessage {
 @Injectable()
 export class AiProvidersService {
   private openai: OpenAI;
+  private anthropic: Anthropic;
+  private mistral: MistralClient;
 
   constructor(private configService: ConfigService) {
     const openaiApiKey = this.configService.get('OPENAI_API_KEY');
@@ -17,6 +21,14 @@ export class AiProvidersService {
       this.openai = new OpenAI({
         apiKey: openaiApiKey,
       });
+    }
+    const anthropicApiKey = this.configService.get('ANTHROPIC_API_KEY');
+    if (anthropicApiKey) {
+      this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
+    }
+    const mistralApiKey = this.configService.get('MISTRAL_API_KEY');
+    if (mistralApiKey) {
+      this.mistral = new MistralClient(mistralApiKey);
     }
   }
 
@@ -54,13 +66,35 @@ export class AiProvidersService {
   }
 
   private async generateClaudeResponse(model: string, messages: ChatMessage[]): Promise<string> {
-    // TODO: Implement Anthropic Claude integration
-    return 'Claude integration is not yet implemented. This is a mock response from Claude.';
+    if (!this.anthropic) {
+      return 'Anthropic is not configured. Please check your API key.';
+    }
+
+    const prompt = messages
+      .map(m => `${m.role === 'user' ? Anthropic.HUMAN_PROMPT : Anthropic.AI_PROMPT} ${m.content}`)
+      .join('') +
+      Anthropic.AI_PROMPT;
+
+    const completion = await this.anthropic.completions.create({
+      model,
+      max_tokens_to_sample: 1000,
+      prompt,
+    });
+
+    return completion.completion.trim();
   }
 
   private async generateMistralResponse(model: string, messages: ChatMessage[]): Promise<string> {
-    // TODO: Implement Mistral AI integration
-    return 'Mistral AI integration is not yet implemented. This is a mock response from Mistral.';
+    if (!this.mistral) {
+      return 'Mistral AI is not configured. Please check your API key.';
+    }
+
+    const response = await this.mistral.chat({
+      model,
+      messages,
+    });
+
+    return response.choices?.[0]?.message?.content || 'No response generated.';
   }
 
   getAvailableModels(): string[] {

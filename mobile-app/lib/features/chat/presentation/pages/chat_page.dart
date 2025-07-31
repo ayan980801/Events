@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../shared/services/chat_service.dart';
 
 class ChatPage extends StatefulWidget {
   final String? conversationId;
@@ -35,18 +36,21 @@ class _ChatPageState extends State<ChatPage> {
 
   void _loadConversation() {
     if (widget.conversationId != null) {
-      // TODO: Load existing conversation
-      // For now, add some mock messages
-      setState(() {
-        _messages.addAll([
-          Message(
-            id: '1',
-            content: 'Hello! How can I help you today?',
-            isUser: false,
-            timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-            model: _selectedModel,
-          ),
-        ]);
+      ChatService()
+          .getMessages(widget.conversationId!)
+          .then((data) {
+        setState(() {
+          _messages = data
+              .map((e) => Message(
+                    id: e['_id'] as String,
+                    content: e['content'] as String,
+                    isUser: e['role'] == 'user',
+                    timestamp: DateTime.parse(e['createdAt'] as String),
+                    model: e['aiModel'] as String?,
+                  ))
+              .toList();
+        });
+        _scrollToBottom();
       });
     }
   }
