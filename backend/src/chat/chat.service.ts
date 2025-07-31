@@ -71,24 +71,32 @@ export class ChatService {
     // Get conversation history for context
     const messages = await this.messageModel.find({ conversationId }).sort({ createdAt: 1 }).exec();
 
-    // Generate AI response
-    const aiResponseContent = await this.aiProvidersService.generateResponse(
+    // Generate AI response with enhanced options
+    const aiResponse = await this.aiProvidersService.generateResponse(
       conversation.aiModel || 'gpt-3.5-turbo',
       messages.map((msg) => ({
         role: msg.role as any,
         content: msg.content,
       })),
+      {
+        temperature: conversation.temperature || 0.7,
+        maxTokens: conversation.maxTokens || 1000,
+        enableFailover: true,
+      },
     );
 
-    // Save AI response
-    const aiResponse = new this.messageModel({
+    // Save AI response with metadata
+    const aiResponseMessage = new this.messageModel({
       conversationId,
       userId,
       role: MessageRole.ASSISTANT,
-      content: aiResponseContent,
-      aiModel: conversation.aiModel,
+      content: aiResponse.content,
+      aiModel: aiResponse.model,
+      aiProvider: aiResponse.provider,
+      tokensUsed: aiResponse.tokens_used,
+      error: aiResponse.error,
     });
-    await aiResponse.save();
+    await aiResponseMessage.save();
 
     // Update conversation last message time
     conversation.lastMessageAt = new Date();
@@ -98,7 +106,7 @@ export class ChatService {
     }
     await conversation.save();
 
-    return { userMessage, aiResponse };
+    return { userMessage, aiResponse: aiResponseMessage };
   }
 
   async deleteConversation(conversationId: string, userId: string): Promise<void> {

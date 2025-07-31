@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, IsOptional, IsEnum, IsBoolean, IsUrl } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { AuthProvider } from '../entities/user.entity';
 
@@ -24,4 +24,24 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   providerId?: string;
+
+  @ApiProperty({ example: 'google_user_123', required: false })
+  @IsOptional()
+  @IsString()
+  googleId?: string;
+
+  @ApiProperty({ example: 'apple_user_456', required: false })
+  @IsOptional()
+  @IsString()
+  appleId?: string;
+
+  @ApiProperty({ example: 'https://example.com/avatar.jpg', required: false })
+  @IsOptional()
+  @IsUrl()
+  profilePicture?: string;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  emailVerified?: boolean;
 }

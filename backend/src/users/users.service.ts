@@ -43,4 +43,28 @@ export class UsersService {
   async findAll(): Promise<User[]> {
     return this.userRepository.find();
   }
+
+  async linkGoogleAccount(userId: string, googleId: string): Promise<User> {
+    const user = await this.findById(userId);
+    user.googleId = googleId;
+    return this.userRepository.save(user);
+  }
+
+  async linkAppleAccount(userId: string, appleId: string): Promise<User> {
+    const user = await this.findById(userId);
+    user.appleId = appleId;
+    return this.userRepository.save(user);
+  }
+
+  async findByGoogleId(googleId: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { googleId } });
+  }
+
+  async findByAppleId(appleId: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { appleId } });
+  }
+
+  async updateLastLogin(userId: string): Promise<void> {
+    await this.userRepository.update(userId, { updatedAt: new Date() });
+  }
 }

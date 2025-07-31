@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import { UsersModule } from './users/users.module';
 import { AiProvidersModule } from './ai-providers/ai-providers.module';
+import { CommonModule } from './common/common.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -62,6 +63,7 @@ import { AppService } from './app.service';
     }),
 
     // Feature modules
+    CommonModule,
     AuthModule,
     ChatModule,
     UsersModule,
