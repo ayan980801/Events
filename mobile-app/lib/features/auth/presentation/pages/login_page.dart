@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../../../../shared/services/auth_service.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -78,13 +81,27 @@ class LoginPage extends StatelessWidget {
   }
   
   void _signInWithGoogle(BuildContext context) {
-    // TODO: Implement Google Sign-In
-    _navigateToChat(context);
+    final googleSignIn = GoogleSignIn(scopes: ['email']);
+    googleSignIn.signIn().then((account) async {
+      if (account == null) return;
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) return;
+
+      final service = AuthService();
+      await service.signInWithGoogle(idToken);
+      _navigateToChat(context);
+    });
   }
-  
+
   void _signInWithApple(BuildContext context) {
-    // TODO: Implement Apple Sign-In
-    _navigateToChat(context);
+    SignInWithApple.getAppleIDCredential(scopes: [AppleIDAuthorizationScopes.email]).then((credential) async {
+      final token = credential.identityToken;
+      if (token == null) return;
+      final service = AuthService();
+      await service.signInWithApple(token);
+      _navigateToChat(context);
+    });
   }
   
   void _continueAsGuest(BuildContext context) {
