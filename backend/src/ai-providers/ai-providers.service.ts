@@ -70,18 +70,19 @@ export class AiProvidersService {
       return 'Anthropic is not configured. Please check your API key.';
     }
 
-    const prompt = messages
-      .map(m => `${m.role === 'user' ? Anthropic.HUMAN_PROMPT : Anthropic.AI_PROMPT} ${m.content}`)
-      .join('') +
-      Anthropic.AI_PROMPT;
+    // Map our ChatMessage format to Anthropic's message format
+    const anthropicMessages = messages.map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
+    }));
 
-    const completion = await this.anthropic.completions.create({
+    const response = await this.anthropic.messages.create({
       model,
-      max_tokens_to_sample: 1000,
-      prompt,
+      max_tokens: 1000,
+      messages: anthropicMessages,
     });
 
-    return completion.completion.trim();
+    return response.content?.[0]?.text?.trim() || 'No response generated.';
   }
 
   private async generateMistralResponse(model: string, messages: ChatMessage[]): Promise<string> {
