@@ -45,7 +45,7 @@ class _ChatPageState extends State<ChatPage> {
                     id: e['_id'] as String,
                     content: e['content'] as String,
                     isUser: e['role'] == 'user',
-                    timestamp: DateTime.parse(e['createdAt'] as String),
+                    timestamp: DateTime.tryParse(e['createdAt'] as String) ?? DateTime.now(),
                     model: e['aiModel'] as String?,
                   ))
               .toList();
