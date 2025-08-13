@@ -1,11 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/auth_provider.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends ConsumerWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authNotifierProvider);
+    
+    // Listen to auth state changes
+    ref.listen(authNotifierProvider, (previous, next) {
+      if (next.isAuthenticated) {
+        context.go('/chat');
+      }
+      
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.error!),
+            backgroundColor: Colors.red,
+          ),
+        );
+        // Clear error after showing
+        ref.read(authNotifierProvider.notifier).clearError();
+      }
+    });
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -42,18 +64,34 @@ class LoginPage extends StatelessWidget {
               
               // Login buttons
               ElevatedButton.icon(
-                onPressed: () => _signInWithGoogle(context),
-                icon: const Icon(Icons.login),
-                label: const Text('Sign in with Google'),
+                onPressed: authState.isLoading 
+                    ? null 
+                    : () => ref.read(authNotifierProvider.notifier).signInWithGoogle(),
+                icon: authState.isLoading 
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.login),
+                label: Text(authState.isLoading ? 'Signing in...' : 'Sign in with Google'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: () => _signInWithApple(context),
-                icon: const Icon(Icons.apple),
-                label: const Text('Sign in with Apple'),
+                onPressed: authState.isLoading 
+                    ? null 
+                    : () => ref.read(authNotifierProvider.notifier).signInWithApple(),
+                icon: authState.isLoading 
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.apple),
+                label: Text(authState.isLoading ? 'Signing in...' : 'Sign in with Apple'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
@@ -62,7 +100,7 @@ class LoginPage extends StatelessWidget {
               
               // Demo mode
               TextButton(
-                onPressed: () => _continueAsGuest(context),
+                onPressed: authState.isLoading ? null : () => _continueAsGuest(context),
                 child: Text(
                   'Continue as guest',
                   style: TextStyle(
@@ -77,21 +115,7 @@ class LoginPage extends StatelessWidget {
     );
   }
   
-  void _signInWithGoogle(BuildContext context) {
-    // TODO: Implement Google Sign-In
-    _navigateToChat(context);
-  }
-  
-  void _signInWithApple(BuildContext context) {
-    // TODO: Implement Apple Sign-In
-    _navigateToChat(context);
-  }
-  
   void _continueAsGuest(BuildContext context) {
-    _navigateToChat(context);
-  }
-  
-  void _navigateToChat(BuildContext context) {
     context.go('/chat');
   }
 }
