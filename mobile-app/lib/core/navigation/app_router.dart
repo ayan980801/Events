@@ -3,14 +3,34 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/providers/auth_provider.dart';
 import '../../features/chat/presentation/pages/chat_page.dart';
 import '../../features/chat/presentation/pages/chat_list_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../shared/widgets/main_navigation.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authNotifierProvider);
+  
   return GoRouter(
     initialLocation: '/chat',
+    redirect: (context, state) {
+      final isLoginRoute = state.location == '/login';
+      final isAuthenticated = authState.isAuthenticated;
+      
+      // If not authenticated and not on login page, redirect to login
+      if (!isAuthenticated && !isLoginRoute) {
+        return '/login';
+      }
+      
+      // If authenticated and on login page, redirect to chat
+      if (isAuthenticated && isLoginRoute) {
+        return '/chat';
+      }
+      
+      // No redirect needed
+      return null;
+    },
     routes: [
       // Authentication routes
       GoRoute(
