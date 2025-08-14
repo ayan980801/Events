@@ -3,7 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
-import '../../features/chat/presentation/pages/chat_page.dart';
+// Prefer new chat page path if present; shim re-exports ChatPage
+import '../../features/chat/presentation/pages/chat_page_new.dart';
 import '../../features/chat/presentation/pages/chat_list_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../shared/widgets/main_navigation.dart';
