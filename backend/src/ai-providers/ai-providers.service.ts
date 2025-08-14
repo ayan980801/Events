@@ -53,12 +53,12 @@ export class AiProvidersService {
     return completion.choices[0]?.message?.content || 'No response generated.';
   }
 
-  private async generateClaudeResponse(model: string, messages: ChatMessage[]): Promise<string> {
+  private async generateClaudeResponse(_model: string, _messages: ChatMessage[]): Promise<string> {
     // TODO: Implement Anthropic Claude integration
     return 'Claude integration is not yet implemented. This is a mock response from Claude.';
   }
 
-  private async generateMistralResponse(model: string, messages: ChatMessage[]): Promise<string> {
+  private async generateMistralResponse(_model: string, _messages: ChatMessage[]): Promise<string> {
     // TODO: Implement Mistral AI integration
     return 'Mistral AI integration is not yet implemented. This is a mock response from Mistral.';
   }
