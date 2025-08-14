@@ -76,15 +76,17 @@ export class AuthService {
     };
   }
 
-  async googleAuth(_token: string) {
+  async googleAuth(token: string) {
     // TODO: Implement Google OAuth verification
     // For now, return a mock response
+    void token;
     throw new Error('Google auth not implemented yet');
   }
 
-  async appleAuth(_token: string) {
+  async appleAuth(token: string) {
     // TODO: Implement Apple OAuth verification
     // For now, return a mock response
+    void token;
     throw new Error('Apple auth not implemented yet');
   }
 

@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/material.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
 // Prefer new chat page path if present; shim re-exports ChatPage
@@ -31,14 +30,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const ChatListPage(),
             routes: [
               GoRoute(
-                path: '/conversation/:conversationId',
+                path: 'conversation/:conversationId',
                 name: 'chat-conversation',
                 builder: (context, state) => ChatPage(
                   conversationId: state.pathParameters['conversationId']!,
                 ),
               ),
               GoRoute(
-                path: '/new',
+                path: 'new',
                 name: 'new-chat',
                 builder: (context, state) => const ChatPage(),
               ),
