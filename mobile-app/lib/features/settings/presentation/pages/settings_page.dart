@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../shared/services/auth_service.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -329,7 +331,9 @@ class SettingsPage extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // TODO: Implement sign out logic
+              AuthService().signOut().then((_) {
+                context.go('/login');
+              });
             },
             child: const Text('Sign Out'),
           ),
