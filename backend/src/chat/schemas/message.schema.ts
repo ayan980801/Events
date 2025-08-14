@@ -24,6 +24,15 @@ export class Message extends Document {
   @Prop()
   aiModel?: string;
 
+  @Prop()
+  aiProvider?: string;
+
+  @Prop()
+  tokensUsed?: number;
+
+  @Prop()
+  error?: string;
+
   @Prop({ type: Object, default: {} })
   metadata: Record<string, any>;
 
