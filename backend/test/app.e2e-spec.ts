@@ -1,37 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { AppModule } from './../src/app.module';
-import { MongooseModule } from '@nestjs/mongoose';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppController } from './../src/app.controller';
+import { AppService } from './../src/app.service';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideModule(MongooseModule)
-      .useModule(
-        MongooseModule.forRoot('mongodb://localhost:27017/test-db-mock', {
-          // Mock configuration that doesn't require actual connection
-          serverSelectionTimeoutMS: 1000,
-          connectTimeoutMS: 1000,
-        }),
-      )
-      .overrideModule(TypeOrmModule)
-      .useModule(
-        TypeOrmModule.forRoot({
-          type: 'sqlite',
-          database: ':memory:',
-          autoLoadEntities: true,
-          synchronize: true,
-        }),
-      )
-      .compile();
+      controllers: [AppController],
+      providers: [AppService],
+    }).compile();
 
     app = moduleFixture.createNestApplication();
+    
+    // Set the global prefix to match the main app
+    app.setGlobalPrefix('api/v1');
+    
     await app.init();
   });
 
