@@ -7,6 +7,7 @@ import {
   MongooseHealthIndicator,
 } from '@nestjs/terminus';
 import { ConfigService } from '../config/config.service';
+import { ProviderSelectionService } from '../ai-providers/provider-selection.service';
 
 @ApiTags('health')
 @Controller('health')
@@ -16,6 +17,7 @@ export class HealthController {
     private db: TypeOrmHealthIndicator,
     private mongoose: MongooseHealthIndicator,
     private configService: ConfigService,
+    private providerSelectionService: ProviderSelectionService,
   ) {}
 
   @Get()
@@ -29,30 +31,32 @@ export class HealthController {
       () => this.db.pingCheck('database'),
       // MongoDB health check
       () => this.mongoose.pingCheck('mongodb'),
-      // Redis health check (if available)
+      // Redis health check (simple for now)
       async () => {
         try {
-          // Simple Redis health check - you might want to inject a Redis service here
           return { redis: { status: 'up' } };
         } catch (error) {
           return { redis: { status: 'down', error: error.message } };
         }
       },
-      // AI Provider health check
+      // AI Provider health checks
       async () => {
-        const aiConfig = this.configService.ai;
-        const providers = {
-          openai: aiConfig.openai ? 'configured' : 'not-configured',
-          anthropic: aiConfig.anthropic ? 'configured' : 'not-configured',
-          mistral: aiConfig.mistral ? 'configured' : 'not-configured',
-        };
-        
-        return {
-          ai_providers: {
-            status: 'up',
-            providers,
-          },
-        };
+        try {
+          const providerHealth = await this.providerSelectionService.healthCheckAll();
+          return {
+            ai_providers: {
+              status: Object.values(providerHealth).some((p: any) => p.status === 'up') ? 'up' : 'down',
+              providers: providerHealth,
+            },
+          };
+        } catch (error) {
+          return {
+            ai_providers: {
+              status: 'down',
+              error: error.message,
+            },
+          };
+        }
       },
     ]);
   }
