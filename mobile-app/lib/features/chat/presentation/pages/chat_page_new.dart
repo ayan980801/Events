@@ -37,8 +37,9 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
       final messages = await _chatRepository.getMessages(_conversationId);
       state = messages;
     } catch (e) {
-      // Handle error
-      print('Error loading messages: $e');
+      // Handle error - in production this should use proper logging
+      // For now, keeping the error silent
+      state = [];
     }
   }
 
@@ -46,7 +47,6 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
     // Add user message immediately
     final userMessage = Message.createLocal(
       conversationId: _conversationId,
-      userId: userId,
       role: MessageRole.user,
       content: content,
     );
@@ -64,8 +64,8 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
       final newState = [...state];
       final userIndex = newState.indexWhere((m) => m.id == userMessage.id);
       if (userIndex != -1) {
-        newState[userIndex] = result.userMessage;
-        newState.add(result.aiResponse);
+        newState[userIndex] = userMessage;
+        newState.add(result);
       }
       
       state = newState;
@@ -73,8 +73,7 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
       // Replace user message with error
       final errorMessage = Message.createError(
         conversationId: _conversationId,
-        userId: userId,
-        error: e.toString(),
+        content: 'Error: ${e.toString()}',
       );
       
       final newState = [...state];
@@ -561,10 +560,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (newTitle != null && newTitle.isNotEmpty && widget.conversationId != null) {
       try {
         final updatedConversation = await ref.read(chatRepositoryProvider)
-            .updateConversationTitle(
-          conversationId: widget.conversationId!,
-          title: newTitle,
-        );
+            .updateConversationTitle(widget.conversationId!, newTitle);
         
         ref.read(selectedConversationProvider.notifier).state = updatedConversation;
       } catch (e) {

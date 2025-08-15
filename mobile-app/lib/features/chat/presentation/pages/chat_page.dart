@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 class ChatPage extends StatefulWidget {
   final String? conversationId;
