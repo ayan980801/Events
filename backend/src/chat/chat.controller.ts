@@ -3,12 +3,12 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { ChatService } from './chat.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SimpleJwtAuthGuard } from '../common/guards/simple-jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('chat')
 @Controller('chat')
-@UseGuards(JwtAuthGuard)
+@UseGuards(SimpleJwtAuthGuard)
 @ApiBearerAuth()
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}

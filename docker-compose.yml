@@ -31,7 +31,7 @@ services:
     volumes:
       - mongodb_data:/data/db
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/chatbot_history --quiet
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/chatbot_history --quiet -u chatbot_user -p chatbot_password --authenticationDatabase admin
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,7 +59,7 @@ services:
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://chatbot_user:chatbot_password@postgres:5432/chatbot_db
-      MONGODB_URL: mongodb://chatbot_user:chatbot_password@mongodb:27017/chatbot_history
+      MONGODB_URL: mongodb://chatbot_user:chatbot_password@mongodb:27017/chatbot_history?authSource=admin
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-change-in-production
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

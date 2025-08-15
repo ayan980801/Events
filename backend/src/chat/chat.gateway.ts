@@ -8,7 +8,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SimpleJwtAuthGuard } from '../common/guards/simple-jwt-auth.guard';
 
 @WebSocketGateway({
   cors: {
@@ -21,7 +21,7 @@ export class ChatGateway {
 
   constructor(private readonly chatService: ChatService) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SimpleJwtAuthGuard)
   @SubscribeMessage('joinConversation')
   async handleJoinConversation(
     @MessageBody() data: { conversationId: string },
@@ -31,7 +31,7 @@ export class ChatGateway {
     client.emit('joinedConversation', { conversationId: data.conversationId });
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(SimpleJwtAuthGuard)
   @SubscribeMessage('leaveConversation')
   async handleLeaveConversation(
     @MessageBody() data: { conversationId: string },
