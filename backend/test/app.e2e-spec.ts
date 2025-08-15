@@ -12,20 +12,24 @@ describe('AppController (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-    .overrideModule(MongooseModule)
-    .useModule(MongooseModule.forRoot('mongodb://localhost:27017/test-db-mock', {
-      // Mock configuration that doesn't require actual connection
-      serverSelectionTimeoutMS: 1000,
-      connectTimeoutMS: 1000,
-    }))
-    .overrideModule(TypeOrmModule)
-    .useModule(TypeOrmModule.forRoot({
-      type: 'sqlite',
-      database: ':memory:',
-      autoLoadEntities: true,
-      synchronize: true,
-    }))
-    .compile();
+      .overrideModule(MongooseModule)
+      .useModule(
+        MongooseModule.forRoot('mongodb://localhost:27017/test-db-mock', {
+          // Mock configuration that doesn't require actual connection
+          serverSelectionTimeoutMS: 1000,
+          connectTimeoutMS: 1000,
+        }),
+      )
+      .overrideModule(TypeOrmModule)
+      .useModule(
+        TypeOrmModule.forRoot({
+          type: 'sqlite',
+          database: ':memory:',
+          autoLoadEntities: true,
+          synchronize: true,
+        }),
+      )
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
