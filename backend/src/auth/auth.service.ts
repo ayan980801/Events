@@ -1,6 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
+import * as appleSignin from 'apple-signin-auth';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -11,6 +14,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -77,17 +81,96 @@ export class AuthService {
   }
 
   async googleAuth(token: string) {
-    // TODO: Implement Google OAuth verification
-    // For now, return a mock response
-    void token;
-    throw new Error('Google auth not implemented yet');
+    const client = new OAuth2Client(this.configService.get('GOOGLE_CLIENT_ID'));
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: this.configService.get('GOOGLE_CLIENT_ID'),
+      });
+      const payload = ticket.getPayload();
+      
+      if (!payload) {
+        throw new UnauthorizedException('Invalid Google token');
+      }
+
+      const { email, name, picture, sub } = payload;
+      
+      // Check if user exists
+      let user = await this.usersService.findByEmail(email);
+      
+      if (!user) {
+        // Create new user from Google account
+        user = await this.usersService.create({
+          email,
+          name: name || 'Google User',
+          provider: AuthProvider.GOOGLE,
+          providerId: sub,
+          avatar: picture,
+        });
+      }
+
+      // Generate JWT token
+      const jwtPayload = { sub: user.id, email: user.email };
+      const jwtToken = this.jwtService.sign(jwtPayload);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar: user.avatar,
+        },
+        token: jwtToken,
+      };
+    } catch (error) {
+      console.error('Google auth error:', error);
+      throw new UnauthorizedException('Invalid Google token');
+    }
   }
 
   async appleAuth(token: string) {
-    // TODO: Implement Apple OAuth verification
-    // For now, return a mock response
-    void token;
-    throw new Error('Apple auth not implemented yet');
+    try {
+      const clientId = this.configService.get('APPLE_CLIENT_ID');
+      const appleData = await appleSignin.verifyIdToken(token, {
+        audience: clientId,
+        ignoreExpiration: false,
+      });
+
+      const { email, sub } = appleData;
+      
+      if (!email || !sub) {
+        throw new UnauthorizedException('Invalid Apple token');
+      }
+
+      // Check if user exists
+      let user = await this.usersService.findByEmail(email);
+      
+      if (!user) {
+        // Create new user from Apple account
+        user = await this.usersService.create({
+          email,
+          name: 'Apple User', // Apple doesn't always provide name
+          provider: AuthProvider.APPLE,
+          providerId: sub,
+        });
+      }
+
+      // Generate JWT token
+      const jwtPayload = { sub: user.id, email: user.email };
+      const jwtToken = this.jwtService.sign(jwtPayload);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+        token: jwtToken,
+      };
+    } catch (error) {
+      console.error('Apple auth error:', error);
+      throw new UnauthorizedException('Invalid Apple token');
+    }
   }
 
   async refreshToken(userId: string) {
