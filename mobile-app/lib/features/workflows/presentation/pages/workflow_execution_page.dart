@@ -26,10 +26,12 @@ class WorkflowExecutionPage extends ConsumerWidget {
             data: (execution) {
               if (execution == null) return const SizedBox.shrink();
               
+              final exec = execution as WorkflowExecution; // Explicit cast
+              
               return PopupMenuButton<String>(
                 onSelected: (value) => _handleAction(context, ref, value),
                 itemBuilder: (context) => [
-                  if (execution.status == WorkflowExecutionStatus.inProgress) ...[
+                  if (exec.status == WorkflowExecutionStatus.inProgress) ...[
                     const PopupMenuItem(
                       value: 'pause',
                       child: Row(
@@ -41,7 +43,7 @@ class WorkflowExecutionPage extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  if (execution.status == WorkflowExecutionStatus.paused) ...[
+                  if (exec.status == WorkflowExecutionStatus.paused) ...[
                     const PopupMenuItem(
                       value: 'resume',
                       child: Row(
@@ -54,7 +56,7 @@ class WorkflowExecutionPage extends ConsumerWidget {
                     ),
                   ],
                   if ([WorkflowExecutionStatus.inProgress, WorkflowExecutionStatus.paused]
-                      .contains(execution.status)) ...[
+                      .contains(exec.status)) ...[
                     const PopupMenuItem(
                       value: 'cancel',
                       child: Row(
@@ -79,7 +81,7 @@ class WorkflowExecutionPage extends ConsumerWidget {
           if (execution == null) {
             return _buildNoExecutionState(context);
           }
-          return _buildExecutionContent(context, ref, execution);
+          return _buildExecutionContent(context, ref, execution as WorkflowExecution);
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => _buildErrorState(context, error.toString()),
@@ -216,7 +218,7 @@ class WorkflowExecutionPage extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               Icons.check_circle,
               size: 80,
               color: Colors.green,

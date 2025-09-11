@@ -6,11 +6,13 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/chat/presentation/pages/chat_page_new.dart';
 import '../../features/chat/presentation/pages/chat_list_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/workflows/presentation/pages/workflow_list_page.dart';
+import '../../features/workflows/presentation/pages/workflow_execution_page.dart';
 import '../../shared/widgets/main_navigation.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/chat',
+    initialLocation: '/workflows',
     routes: [
       // Authentication routes
       GoRoute(
@@ -40,6 +42,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'new',
                 name: 'new-chat',
                 builder: (context, state) => const ChatPage(),
+              ),
+            ],
+          ),
+          
+          // Workflows routes
+          GoRoute(
+            path: '/workflows',
+            name: 'workflows',
+            builder: (context, state) => const WorkflowListPage(),
+            routes: [
+              GoRoute(
+                path: '/execution',
+                name: 'workflow-execution',
+                builder: (context, state) => const WorkflowExecutionPage(),
               ),
             ],
           ),

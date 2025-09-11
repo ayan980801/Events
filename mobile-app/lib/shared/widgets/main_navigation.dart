@@ -14,6 +14,7 @@ class MainNavigation extends StatelessWidget {
     return Scaffold(
       body: child,
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
         currentIndex: _getCurrentIndex(context),
         onTap: (index) => _onTap(context, index),
         items: const [
@@ -21,6 +22,11 @@ class MainNavigation extends StatelessWidget {
             icon: Icon(Icons.chat_bubble_outline),
             activeIcon: Icon(Icons.chat_bubble),
             label: 'Chat',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.workspaces_outlined),
+            activeIcon: Icon(Icons.workspaces),
+            label: 'Workflows',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
@@ -35,7 +41,8 @@ class MainNavigation extends StatelessWidget {
   int _getCurrentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     if (location.startsWith('/chat')) return 0;
-    if (location.startsWith('/settings')) return 1;
+    if (location.startsWith('/workflows')) return 1;
+    if (location.startsWith('/settings')) return 2;
     return 0;
   }
   
@@ -45,6 +52,9 @@ class MainNavigation extends StatelessWidget {
         context.go('/chat');
         break;
       case 1:
+        context.go('/workflows');
+        break;
+      case 2:
         context.go('/settings');
         break;
     }
