@@ -42,6 +42,9 @@ export class User {
   @Column({ nullable: true })
   providerId: string;
 
+  @Column({ nullable: true })
+  avatar: string;
+
   @Column({
     type: 'enum',
     enum: SubscriptionTier,

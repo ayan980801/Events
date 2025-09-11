@@ -1,11 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/auth_provider.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends ConsumerWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    
+    // Listen to auth state changes and navigate on success
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.user != null) {
+        context.go('/chat');
+      } else if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.error!),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    });
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -42,16 +60,22 @@ class LoginPage extends StatelessWidget {
               
               // Login buttons
               ElevatedButton.icon(
-                onPressed: () => _signInWithGoogle(context),
-                icon: const Icon(Icons.login),
-                label: const Text('Sign in with Google'),
+                onPressed: authState.isLoading ? null : () => _signInWithGoogle(ref),
+                icon: authState.isLoading 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.login),
+                label: Text(authState.isLoading ? 'Signing in...' : 'Sign in with Google'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: () => _signInWithApple(context),
+                onPressed: authState.isLoading ? null : () => _signInWithApple(ref),
                 icon: const Icon(Icons.apple),
                 label: const Text('Sign in with Apple'),
                 style: OutlinedButton.styleFrom(
@@ -62,7 +86,7 @@ class LoginPage extends StatelessWidget {
               
               // Demo mode
               TextButton(
-                onPressed: () => _continueAsGuest(context),
+                onPressed: authState.isLoading ? null : () => _continueAsGuest(context),
                 child: Text(
                   'Continue as guest',
                   style: TextStyle(
@@ -70,6 +94,24 @@ class LoginPage extends StatelessWidget {
                   ),
                 ),
               ),
+              
+              if (authState.error != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    authState.error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -77,21 +119,15 @@ class LoginPage extends StatelessWidget {
     );
   }
   
-  void _signInWithGoogle(BuildContext context) {
-    // TODO: Implement Google Sign-In
-    _navigateToChat(context);
+  void _signInWithGoogle(WidgetRef ref) {
+    ref.read(authProvider.notifier).loginWithGoogle();
   }
   
-  void _signInWithApple(BuildContext context) {
-    // TODO: Implement Apple Sign-In
-    _navigateToChat(context);
+  void _signInWithApple(WidgetRef ref) {
+    ref.read(authProvider.notifier).loginWithApple();
   }
   
   void _continueAsGuest(BuildContext context) {
-    _navigateToChat(context);
-  }
-  
-  void _navigateToChat(BuildContext context) {
     context.go('/chat');
   }
 }

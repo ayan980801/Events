@@ -24,4 +24,9 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   providerId?: string;
+
+  @ApiProperty({ example: 'https://avatar.url', required: false })
+  @IsOptional()
+  @IsString()
+  avatar?: string;
 }

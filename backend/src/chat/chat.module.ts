@@ -6,6 +6,7 @@ import { ChatGateway } from './chat.gateway';
 import { Conversation, ConversationSchema } from './schemas/conversation.schema';
 import { Message, MessageSchema } from './schemas/message.schema';
 import { AiProvidersModule } from '../ai-providers/ai-providers.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AiProvidersModule } from '../ai-providers/ai-providers.module';
       { name: Message.name, schema: MessageSchema },
     ]),
     AiProvidersModule,
+    AuthModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],

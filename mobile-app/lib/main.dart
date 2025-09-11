@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_config.dart';
+import 'core/services/api_client.dart';
 import 'core/theme/app_theme.dart';
 import 'core/navigation/app_router.dart';
 
@@ -10,6 +11,9 @@ void main() async {
   
   // Initialize app configuration
   await AppConfig.initialize();
+  
+  // Initialize API client
+  ApiClient().initialize();
   
   runApp(
     const ProviderScope(
