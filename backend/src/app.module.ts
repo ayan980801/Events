@@ -10,6 +10,7 @@ import { ChatModule } from './chat/chat.module';
 import { UsersModule } from './users/users.module';
 import { AiProvidersModule } from './ai-providers/ai-providers.module';
 import { UploadModule } from './upload/upload.module';
+import { WorkflowsModule } from './workflows/workflows.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -68,6 +69,7 @@ import { AppService } from './app.service';
     UsersModule,
     AiProvidersModule,
     UploadModule,
+    WorkflowsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
